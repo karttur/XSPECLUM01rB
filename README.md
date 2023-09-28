@@ -1,0 +1,2 @@
+# XSPECLUM01rB
+Firmware for XSPECLUM01rB
