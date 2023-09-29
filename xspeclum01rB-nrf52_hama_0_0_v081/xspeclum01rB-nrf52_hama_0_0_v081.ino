@@ -525,11 +525,18 @@ void readSpectrometer(){
 
 // print results from main spectral sensor
 
-void value_print_Main_spectra_dark(String sensor, int start_ch, int end_ch){
+void value_print_Main_spectra_dark(String sensor, int start_ch, int end_ch, int blanks){
   int i;
   int n = 0;
+
+
   while (n < 2) { 
-    Serial.print("data=");
+    if (diagnos){
+      Serial.print("      data=");
+    } else {
+      Serial.print("data=");
+    }
+
     Serial.print(sensor);
     Serial.print(':');
     Serial.print(n);
@@ -575,7 +582,7 @@ void value_print_Main_raw_scan(String sensor, int start_ch, int end_ch){
 
 void value_print_SortedSpectra(String sensor, uint16_t sortedSpectra[], int start_ch, int end_ch){
 
-  Serial.print("sortedSpectra=");
+  Serial.print("  sortedSpectra=");
   Serial.print(sensor);
   Serial.print(':');
 
@@ -595,7 +602,7 @@ void value_print_SortedSpectra(String sensor, uint16_t sortedSpectra[], int star
 // Function to copy 'len' elements from 'src' to 'dst'
 void copy(uint16_t* src, uint16_t* dst, int startPixel, int endPixel) {
   if (diagnos){
-    Serial.print("Copying pixel :");
+    Serial.print("        Copying pixel: ");
     Serial.print(startPixel);
     Serial.print(" to ");
     Serial.println(endPixel);
@@ -607,7 +614,7 @@ void copy(uint16_t* src, uint16_t* dst, int startPixel, int endPixel) {
 }
 
 void hamamatsu_spectra_scan(String sensor, int SPECTRO_stabilisation_time, int vset_mV, int nScans, int n_integration_times,
-                            int SPECTRO_integration_times[],int SPECTRO_start_pixels[], int SPECTRO_end_pixels[]){
+                            int SPECTRO_integration_times[],int SPECTRO_start_pixels[], int SPECTRO_end_pixels[], int blanks=0){
   
   int integrationTime;
   int startPixel;
@@ -626,13 +633,18 @@ void hamamatsu_spectra_scan(String sensor, int SPECTRO_stabilisation_time, int v
   int loopnr = 0;
 
   while (scannr < nScans) { 
-    Serial.print("scannr: ");
-    Serial.println(scannr);
-
+    if (diagnos) {
+      Serial.print("    scannr: ");
+      Serial.println(scannr);
+    }
+    
+    
     for (int j = N-1; j>=0; j--){
 
-      Serial.print("for loop (j):");
-      Serial.println(j);
+      if (diagnos) {  
+        Serial.print("      for loop (integration time):");
+        Serial.println(j);
+      }
       
       loopnr += 1;
 
@@ -640,14 +652,6 @@ void hamamatsu_spectra_scan(String sensor, int SPECTRO_stabilisation_time, int v
       startPixel = SPECTRO_start_pixels[j];
       endPixel = SPECTRO_end_pixels[j];
 
-      Serial.print("integrationTime: ");
-      Serial.println(integrationTime);
-      /*
-      Serial.print("startPixel: ");
-      Serial.println(startPixel);
-      Serial.print("endPixel: ");
-      Serial.println(endPixel);
-      */
       // Step rgbpixel values blue - gree - yellow - red - blue
       if ( (loopnr % 4) == 0) { red=0; green=0; blue=100; } 
       else if ( (loopnr % 3) == 0) { red=100; green=0; blue=0; }
@@ -704,7 +708,7 @@ void hamamatsu_spectra_scan(String sensor, int SPECTRO_stabilisation_time, int v
     } // end for 
     
     // Write out the scan result
-    value_print_Main_spectra_dark(sensor, START_CHANNEL, END_CHANNEL);
+    value_print_Main_spectra_dark(sensor, START_CHANNEL, END_CHANNEL, blanks);
     
     scannr += 1;
     
@@ -732,15 +736,19 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
                         int iniIntegrationTime, int ascendingIntegrationTimeStep, int descedingIntegrationTimeStep,
                         int SPECTRO_integration_times[], int SPECTRO_start_pixels[], int SPECTRO_end_pixels[]){
   
+  // Set integration time from single scan
   int nscans = 1;
+  // define the arrays (size = 1) to send to hamamatsu_spectra_scan
   int startPixels[1];
   int endPixels[1];
   int integrationTimes[1];
-  
+
+  // Set integrationtime and define the full range of channels/pixels
+  integrationTimes[0] = iniIntegrationTime;
   startPixels[0] = START_CHANNEL;
   endPixels[0] = END_CHANNEL;
-  integrationTimes[0] = iniIntegrationTime;
   
+  // The boolean variables ascending and cont are used for detrmining if the intergration should increase or decrease
   bool ascending = true;
   bool cont = true;
 
@@ -748,9 +756,12 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
   int maxSignal = 10;
 
   if (diagnos) {
-    Serial.println("\nSeting integration times ");
-    Serial.print("n_integration_times: ");
+    Serial.print("  n_integration_times: ");
     Serial.println( n_integration_times);
+    Serial.print("  start pixel: ");
+    Serial.println(startPixels[0]);
+    Serial.print("  end pixel: ");
+    Serial.println(endPixels[0]);  
   }
   
   while (cont) {
@@ -758,28 +769,28 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
     memset(spectra, 0, sizeof(spectra));
     
     if (diagnos) {
-      Serial.print("\nintegration time: ");
-      Serial.println(integrationTimes[0]);
-      Serial.print("start pixel: ");
-      Serial.println(startPixels[0]);
-      Serial.print("end pixel: ");
-      Serial.println(endPixels[0]);   
+      Serial.print("  integration time: ");
+      Serial.println(integrationTimes[0]);   
     }
     
     // Wait a bit longer with the spectrometer and LED in off state
     delay(500);
-    
+
+    // Power up spectral sensor
     digitalWrite(SPECTRO_BOOST_EN, HIGH);
     // Start LED driver 
     digitalWrite(LED_BUCK_EN, HIGH);
-    
+
+    // Do the sepctral scan
     hamamatsu_spectra_scan(sensor, SPECTRO_stabilisation_time, vset_mV, nscans, 1,
                             integrationTimes, startPixels, endPixels);
 
     // Turn off LED driver 
     digitalWrite(LED_BUCK_EN, LOW);
+    // Power down spectral sensor
     digitalWrite(SPECTRO_BOOST_EN, LOW);
 
+    // Get min and max signal for the scan
     minSignal = spectra[0]; 
     maxSignal = spectra[0];
     
@@ -792,11 +803,13 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
       }
     }
     
-    Serial.print("\nmaxSignal: ");
-    Serial.println(maxSignal);
-    Serial.print("minSignal: ");
-    Serial.println(minSignal);
-
+    if (diagnos) {
+      Serial.print("      maxSignal: ");
+      Serial.println(maxSignal);
+      Serial.print("      minSignal: ");
+      Serial.println(minSignal); 
+    }
+    
     if (ascending && maxSignal < maxDN) {
 
       integrationTimes[0] += ascendingIntegrationTimeStep;
@@ -811,10 +824,12 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
     } 
 
   }
-  
+
+  // sort the last scan in place
   int scan_length = sizeof(spectraSignal) / sizeof(spectraSignal[0]);
   qsort(spectraSignal, scan_length, sizeof(spectraSignal[0]), sort_desc);
 
+  // extract the channels with valid values
   int LIVE_CHANNELS = END_CHANNEL-START_CHANNEL;
   uint16_t sortedSpectra[LIVE_CHANNELS];
   for (int s = 0; s <= LIVE_CHANNELS; s++) {
@@ -822,6 +837,9 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
   }
 
   if (diagnos) {
+    Serial.print("\n  Tuned integration time: ");
+    Serial.println(integrationTimes[0]);
+    // print the sorted spectra
     value_print_SortedSpectra(sensor, sortedSpectra, 0, LIVE_CHANNELS);
   }
     
@@ -831,28 +849,19 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
   int ns = 0;
   int intTime = integrationTimes[0];
   
-  
-  
-
-  /*
-  for (int r = 0; r < n_integration_times-1; r++) {
-    SpectraSplit[r] = split*(r+1);
-  }
-  */
 
   // Split with linear division
-  // Most straight roward and OK result
+  // Most straight forward and OK result
   split = maxSignal/n_integration_times;
   for (int r = 0; r < n_integration_times-1; r++) {
     ns = n_integration_times-1-r;
     SpectraSplit[r] = split*(ns);
     intTime = integrationTimes[0]*(r+1);
-    integrationTimeFactors[r] = intTime;
-    
+    integrationTimeFactors[r] = intTime;   
   }
   
   /*
-  // This split give a wider center and is generally not better
+  // Sequential split in hals; gives a wider center but is generally not better
   split = maxSignal;
   for (int r = 0; r < n_integration_times-1; r++) {
     split /= 2;
@@ -865,10 +874,15 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
   // reset spectraScan and darkScan
   memset(spectraSignal, 0, sizeof(spectraSignal));
   memset(spectraDark, 0, sizeof(spectraDark));
-  // rescan as old scan is sorted
-
+  
+  // rescan as the previous scan is sorted
+  if (diagnos) {
+    Serial.print("  Rescanning tuned integartion time: ");
+    Serial.println(integrationTimes[0]);
+  }
   // Wait a bit with the spectrometer and LED in off state
   delay(400);
+  // Power up spectrometer
   digitalWrite(SPECTRO_BOOST_EN, HIGH);
   // Start LED driver 
   digitalWrite(LED_BUCK_EN, HIGH);
@@ -878,21 +892,24 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
 
   // Turn off LED driver 
   digitalWrite(LED_BUCK_EN, LOW);
+  // Power down spectrometer
   digitalWrite(SPECTRO_BOOST_EN, LOW);
-    
-  value_print_Main_spectra_dark(sensor, START_CHANNEL, END_CHANNEL);
-  //<c14384ma-01:2:1:1206VINI:800:2500:200:0:2:50:100:200:200:64:256>
-  
+
+
+  if (diagnos) {
+    Serial.print("  Splitting the tuned spectra histogram: ");
+  }
+   
   // Divide the spectra using the split levels
   int s;
   int n;
   for (int r = 0; r < n_integration_times-1; r++) {
     split = SpectraSplit[r];
-    Serial.print("split: ");
+    Serial.print("    split@: ");
     Serial.println(SpectraSplit[r]);
     s = 0;
     n = 0;
-    //SPECTRO_integration_times[r] = integrationTimes[0]*(r+1);
+ 
     SPECTRO_integration_times[r] = integrationTimeFactors[r];
     while (s < split){
       s = spectraSignal[n];
@@ -908,11 +925,14 @@ void SetIntegrationTimes(String sensor, int SPECTRO_stabilisation_time, int vset
     }
     
   }
+  
   // Set the last integrationTime, startPixel and endPixel
-
   SPECTRO_integration_times[n_integration_times-1] = integrationTimes[0]*(n_integration_times);
   SPECTRO_start_pixels[n_integration_times-1] = START_CHANNEL;
   SPECTRO_end_pixels[n_integration_times-1] = END_CHANNEL;
+  if (diagnos){
+     Serial.println("Finished automatic setting of integrationtimes");
+   }
 }
 
 /* END SetIntegraationTime */
@@ -1010,13 +1030,14 @@ void loop()
     
     String xparam[18];
     // Set the xparams
-    for(x=0; x<18; x++) {
+    for(x=0; x<20; x++) {
       xparam[x]= getValue(inString, ':', x+3);    
     }
 
     if (diagnos) {
 
       // Print out complete inString
+      Serial.println("Diagnostic mode");
       Serial.println("inString: " + inString);
       
       // Print out all input parameters
@@ -1024,23 +1045,22 @@ void loop()
       Serial.println("  sensor: " + sensor);
       Serial.println("  scans: " + nscanStr);
       Serial.println("  diagnose: " + diagnosStr);
-      for(x=0; x<18; x++) {
+      for(x=0; x<20; x++) {
         Serial.print("  xparam");  
         Serial.print (x);
         Serial.println(":" +  xparam[x]);
       }
       Serial.println("Parameters (finished)");
 
-      // Get battery status
+      // Get the battery status - if battery is below vset_mV the spectral scan is not done
       adcvalue = analogRead(PIN_VBAT);
+      vbat=(float)adcvalue * mv_per_lsb *2;
 
       Serial.print("\nBattery status (VBAT): ");
       Serial.print(vbat);
-      Serial.println(" mV\n");
+      Serial.println(" mV");
 
     }
-
-    Serial.println("startofdata");
 
     // Identify the sensor asked for
 
@@ -1076,68 +1096,20 @@ void loop()
       xp17 = endPixelIntegrationTime3 = 200:    
       */
 
-      // Set the parameters
+      // Set the initial parameters
       int maxDN = xparam[1].toInt();
       int vset_mV = xparam[2].toInt();
-      int SPECTRO_stabilisation_time;
+      int SPECTRO_stabilisation_time = xparam[3].toInt();
       int autoIntegrationTime = xparam[4].toInt();
       int n_integration_times = xparam[5].toInt();
       int SPECTRO_integration_times[5];
       int SPECTRO_start_pixels[5];
       int SPECTRO_end_pixels[5];
-
-      if (autoIntegrationTime){
-
-        int iniIntegrationTime=xparam[6].toInt();
-        int ascendingIntegrationTimeStep=xparam[7].toInt();
-        int descedingIntegrationTimeStep=xparam[8].toInt();
-        if (diagnos){
-          Serial.println("Automatic setting of integrationtimes; n=" + xparam[5]);
-        }
-        SetIntegrationTimes(sensor, SPECTRO_stabilisation_time, vset_mV, n_integration_times, maxDN, iniIntegrationTime,
-                            ascendingIntegrationTimeStep,descedingIntegrationTimeStep,
-                            SPECTRO_integration_times, SPECTRO_start_pixels, SPECTRO_end_pixels);
-
-
-        for(int t = 0; t < n_integration_times; t++){
-
-          Serial.print("IntegrationTime");
-          Serial.print(t);
-          Serial.print(":");
-          Serial.print( SPECTRO_integration_times[t] );
-          Serial.print(" startPixel:");
-          Serial.print( SPECTRO_start_pixels[t] );
-          Serial.print(" endPixel:");
-          Serial.println( SPECTRO_end_pixels[t] );
-        }
-   
-      } else {
-
-        for(int t = 0; t < n_integration_times; t++){
-        int u = 6+t*3;
-          SPECTRO_integration_times[t] = xparam[u].toInt();
-          SPECTRO_start_pixels[t] = xparam[u+1].toInt();
-          SPECTRO_end_pixels[t] = xparam[u+2].toInt();
-          if (diagnos){
-            Serial.print("IntegrationTime");
-            Serial.print(t);
-            Serial.print(":");
-            Serial.print( xparam[u] );
-            Serial.print(" startPixel:");
-            Serial.print( xparam[u+1] );
-            Serial.print(" endPixel:");
-            Serial.println( xparam[u+2] );
-          }
-         
-        }
-        
-      }
+      // Set parameters derived from eeprom
+      String muzzleId;
+      String emittor1;
+      String emittor2;
       
-      
-
-      // Get the battery status - if battery is below vset_mV the spectral scan is not done
-      adcvalue = analogRead(PIN_VBAT);
-      vbat=(float)adcvalue * mv_per_lsb *2;
 
       if (diagnos) {
         Serial.println();
@@ -1159,10 +1131,13 @@ void loop()
 
         Read1WDS2431Mem(eepromStrings, eepromInts, diagnos);
 
-        // Trim the muzzleid, emittor1 and emittor from whitespace
         eepromStrings[0].trim();
         eepromStrings[1].trim();
         eepromStrings[2].trim();
+
+        muzzleId = eepromStrings[0];
+        emittor1 = eepromStrings[1];
+        emittor2 = eepromStrings[2];
         
         if ( xparam[0] != eepromStrings[0] ){
           if (diagnos) {
@@ -1175,7 +1150,7 @@ void loop()
         } else {
           vset_mV = xparam[2].toInt();
           if (vset_mV > eepromInts[1] & diagnos) {              
-            Serial.print("WARNING - the user defined LED power, " +  xparam[1] + " is higher than the maximum allowed for the muzzle primary emittor: ");
+            Serial.print("WARNING - the user defined LED power, " +  xparam[2] + " is higher than the maximum allowed for the muzzle primary emittor: ");
             Serial.println(eepromInts[1]);   
           } else if (eepromInts[4] > 0 & vset_mV > eepromInts[5] & diagnos) {
             Serial.print("WARNING - the user defined LED power, " + xparam[1] + " is higher than the maximum allowed for the muzzle secondary emittor: ");
@@ -1187,32 +1162,61 @@ void loop()
             Serial.print("WARNING - the user defined LED power, " + xparam[1] + "  is lower than the minimum threshold for the muzzle secondary emittor: ");
             Serial.println(eepromStrings[4]);
           }
-
+        }
+        
         if (vset_mV > vbat) {
             Serial.print("WARNING - the available battery voltage, " + xparam[1] + "  is lower than the required voltage: ");
             Serial.println("EXITING");
         }
-        }
-
+        
         if (xparam[3].toInt() <= 0){
           SPECTRO_stabilisation_time = eepromInts[6];
-        } else {
-          SPECTRO_stabilisation_time = xparam[3].toInt();
+        } 
+        
+      } else {
+        // no onewire EEPROM
+
+        muzzleId = "unknown";
+        emittor1 = "unknown";
+        emittor2 = "unknown";
+        
+      }
+
+      if (autoIntegrationTime){
+
+        int iniIntegrationTime=xparam[6].toInt();
+        int ascendingIntegrationTimeStep=xparam[7].toInt();
+        int descedingIntegrationTimeStep=xparam[8].toInt();
+        if (diagnos){
+          Serial.println("\nAutomatic setting of integrationtimes");
         }
         
-        // Create a json object of the metadata for the spectral emittor(s) and their settings
-        metadata = "{\"muzzleid\":\"" + eepromStrings[0] + "\",\"emittor1\":\"" + eepromStrings[1] + "\"\
-        ,\"emittor2\":\"" + eepromStrings[2] + "\",\"emittor1resistor\":"; 
-        metadata.concat( eepromInts[2] );
-        metadata.concat(",\"emittor2resistor\":");
-        metadata.concat( eepromInts[5] );
-        metadata.concat(",\"voltage\":");
-        metadata.concat( vset_mV );
-        //metadata.concat(",\"integrationtime\":");
-        //metadata.concat( SPECTRO_integration_time );
-        metadata.concat(",\"stabilisationtime\":");
-        metadata.concat( "}");
-      } 
+        SetIntegrationTimes(sensor, SPECTRO_stabilisation_time, vset_mV, n_integration_times, maxDN, iniIntegrationTime,
+                            ascendingIntegrationTimeStep,descedingIntegrationTimeStep,
+                            SPECTRO_integration_times, SPECTRO_start_pixels, SPECTRO_end_pixels);
+      } else {
+
+        for(int t = 0; t < n_integration_times; t++){
+        int u = 6+t*3;
+          SPECTRO_integration_times[t] = xparam[u].toInt();
+          SPECTRO_start_pixels[t] = xparam[u+1].toInt();
+          SPECTRO_end_pixels[t] = xparam[u+2].toInt();
+          if (diagnos){
+            Serial.print("IntegrationTime");
+            Serial.print(t);
+            Serial.print(":");
+            Serial.print( xparam[u] );
+            Serial.print(" startPixel:");
+            Serial.print( xparam[u+1] );
+            Serial.print(" endPixel:");
+            Serial.println( xparam[u+2] );
+          }  
+        }
+      }
+ 
+      // Get the battery status - if battery is below vset_mV the spectral scan is not done
+      adcvalue = analogRead(PIN_VBAT);
+      vbat=(float)adcvalue * mv_per_lsb *2;
 
       // Wait a bit with the spectrometer and LED in off state
       delay(200);
@@ -1220,27 +1224,54 @@ void loop()
       // Start LED driver 
       digitalWrite(LED_BUCK_EN, HIGH);
 
-      Serial.println("\nstart of spectra scan\n");
+      Serial.println("\nStart of spectra scan\n");
       if (diagnos) {
-        Serial.print("sensor: ");
+        Serial.print("  sensor: ");
         Serial.println(sensor);
-        //Serial.print("SPECTRO_integration_time: ");
-        //Serial.println(SPECTRO_integration_time);
-        Serial.print("SPECTRO_stabilisation_time: ");
+        Serial.print("  SPECTRO_stabilisation_time: ");
         Serial.println(SPECTRO_stabilisation_time);
-        Serial.print("vset_mV: ");
+        Serial.print("  vset_mV: ");
         Serial.println(vset_mV);
+        for(int t = 0; t < n_integration_times; t++){
+          Serial.print("  IntegrationTime");
+          Serial.print(t);
+          Serial.print(":");
+          Serial.print( SPECTRO_integration_times[t] );
+          Serial.print(" startPixel:");
+          Serial.print( SPECTRO_start_pixels[t] );
+          Serial.print(" endPixel:");
+          Serial.println( SPECTRO_end_pixels[t] );
+        }
       }
 
- 
-      //int SPECTRO_integration_times[5];
-      //int SPECTRO_start_pixels[5];
-      //int SPECTRO_end_pixels[5];
-
+      // Create a json object of the metadata for the spectral emittor(s) and their settings
+      metadata = "{\"muzzleid\":\"" + muzzleId + "\",\"emittor1\":\"" + emittor1 + "\",\"emittor2\":\"" + emittor2 + "\""; 
+      metadata.concat(",\"vset_mV\":");
+      metadata.concat( vset_mV );
+      metadata.concat(",\"stabilisationtime\":");
+      metadata.concat(SPECTRO_stabilisation_time);
+        
+      metadata.concat(",\"integrationtimes\": {");
+        
+      for(int t = 0; t < n_integration_times; t++){
+        metadata.concat("\"IntegrationTime");
+        metadata.concat(t);
+        metadata.concat("\":{\"ms\":");
      
-      //SPECTRO_integration_times[0] = 500;
-      //SPECTRO_start_pixels[0] = START_CHANNEL;
-      //SPECTRO_end_pixels[0] = END_CHANNEL;
+        metadata.concat( SPECTRO_integration_times[t] );
+        metadata.concat(",\"startPixel\":");
+        metadata.concat( SPECTRO_start_pixels[t] );
+        metadata.concat(",\"endPixel\":");
+        metadata.concat( SPECTRO_end_pixels[t] );
+        if (t == n_integration_times-1){
+          metadata.concat( "}}");
+        } else {
+          metadata.concat( "},");
+        }
+        
+          
+      }
+      metadata.concat( "}");
 
       hamamatsu_spectra_scan(sensor, SPECTRO_stabilisation_time, vset_mV, nscans, n_integration_times,
                             SPECTRO_integration_times, SPECTRO_start_pixels, SPECTRO_end_pixels);
@@ -1255,7 +1286,7 @@ void loop()
       metadata = "{}";
     }
     
-    Serial.println("endofdata");
+    Serial.println("End of spectra scan");
     
     // print metadata as single row of data
 
